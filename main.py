@@ -29,7 +29,7 @@ intents.message_content = True  # Required for anti-spam
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Allowed server IDs
-ALLOWED_SERVERS = [1373116978709139577, 1382415420413313096, 1383225206797242398]
+ALLOWED_SERVERS = [1373116978709139577, 1382415420413313096, 1383225206797242398, 1358847884929536081]
 
 # Anti-spam system
 spam_tracker = {}  # {user_id: [{'message': str, 'timestamp': float, 'channel_id': int}]}
@@ -59,7 +59,7 @@ def save_data(data):
 
 def is_allowed_server(guild_id):
     """Check if the server is allowed to use the bot"""
-    return guild_id in ALLOWED_SERVERS
+    return True  # Allow all servers
 
 @bot.event
 async def on_ready():
@@ -88,8 +88,12 @@ async def on_ready():
                 channel_id = config
                 task = asyncio.create_task(send_daily_meigen(guild_id, channel_id))
             meigen_tasks[guild_id] = task
+    
     try:
         synced = await bot.tree.sync()
+        print(f'Synced {len(synced)} command(s)')
+    except Exception as e:
+        print(f'Failed to sync commands: {e}')
 
 
 # Update bot status when joining or leaving servers
@@ -109,11 +113,6 @@ async def on_guild_remove(guild):
     await bot.change_presence(status=discord.Status.online, activity=activity)
     print(f"Left guild: {guild.name} (ID: {guild.id}). Now in {server_count} servers.")
 
-
-        print(f'Synced {len(synced)} command(s)')
-    except Exception as e:
-        print(f'Failed to sync commands: {e}')
-
 @bot.event
 async def on_message(message):
     # Ignore bot's own messages
@@ -122,7 +121,6 @@ async def on_message(message):
 
     # Check if server is allowed
     if not is_allowed_server(message.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
         return
 
     # Handle message copying first
@@ -283,6 +281,11 @@ class RoleSelectionView(discord.ui.View):
 
     async def assign_role(self, interaction, role):
         try:
+            # Check if user has administrator permission
+            if not interaction.user.guild_permissions.administrator:
+                await interaction.response.send_message('❌ ロール取得は管理者のみが利用できます。', ephemeral=True)
+                return
+
             # Check if user already has the role
             if role in interaction.user.roles:
                 await interaction.response.send_message(f'❌ あなたは既に {role.name} ロールを持っています。', ephemeral=True)
@@ -320,6 +323,11 @@ class SpecificRoleView(discord.ui.View):
 
     @discord.ui.button(label='ろーるをしゅとく！', style=discord.ButtonStyle.primary)
     async def get_role_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Check if user has administrator permission
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message('❌ ロール取得は管理者のみが利用できます。', ephemeral=True)
+            return
+
         data = load_data()
         user_id = str(interaction.user.id)
 
@@ -356,6 +364,11 @@ class PublicAuthView(discord.ui.View):
 
     @discord.ui.button(label='認証する', style=discord.ButtonStyle.primary)
     async def authenticate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Check if user has administrator permission
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message('❌ 認証は管理者のみが利用できます。', ephemeral=True)
+            return
+
         data = load_data()
         user_id = str(interaction.user.id)
 
@@ -422,8 +435,8 @@ async def nuke_channel(interaction: discord.Interaction):
         await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
         return
 
-    if not interaction.user.guild_permissions.manage_channels:
-        await interaction.response.send_message('❌ チャンネル管理権限が必要です。', ephemeral=True)
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
 
     channel = interaction.channel
@@ -511,8 +524,8 @@ async def setup_role(interaction: discord.Interaction, role_name: str = None):
             await interaction.followup.send('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
             return
 
-        if not interaction.user.guild_permissions.manage_roles:
-            await interaction.followup.send('❌ ロール管理権限が必要です。', ephemeral=True)
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send('❌ 管理者権限が必要です。', ephemeral=True)
             return
 
         # If specific role name is provided, create a panel for that specific role
@@ -1719,8 +1732,8 @@ async def delete_messages(interaction: discord.Interaction, count: int, user: di
         await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
         return
 
-    if not interaction.user.guild_permissions.manage_messages:
-        await interaction.response.send_message('❌ メッセージ管理権限が必要です。', ephemeral=True)
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
 
     if count <= 0 or count > 100:
@@ -1836,7 +1849,7 @@ COMMAND_HELP = {
     'nuke': {
         'description': 'チャンネルを再生成（設定を引き継ぎ）',
         'usage': '/nuke',
-        'details': '現在のチャンネルを削除し、同じ設定で再作成します。チャンネル管理権限が必要です。'
+        'details': '現在のチャンネルを削除し、同じ設定で再作成します。管理者権限が必要です。'
     },
     'profile': {
         'description': 'ユーザープロフィールを表示',
@@ -1857,7 +1870,7 @@ COMMAND_HELP = {
     'setuprole': {
         'description': 'ロール取得パネルを設置',
         'usage': '/setuprole [ロール名]',
-        'details': '誰でもボタンをクリックしてロールを取得できるパネルを設置します。ロール名を指定すると特定のロール専用パネルが作成され、省略すると全ロール選択パネルが作成されます。ロール管理権限が必要です。'
+        'details': '管理者のみがボタンをクリックしてロールを取得できるパネルを設置します。ロール名を指定すると特定のロール専用パネルが作成され、省略すると全ロール選択パネルが作成されます。管理者権限が必要です。'
     },
     'antispam-config': {
         'description': '荒らし対策設定を表示・変更',
@@ -1939,7 +1952,7 @@ COMMAND_HELP = {
     'delete': {
         'description': '指定した数のメッセージを削除',
         'usage': '/delete <メッセージ数> [ユーザー]',
-        'details': '指定した数のメッセージを削除します。ユーザーを指定すると、そのユーザーのメッセージのみを削除します。1-100件まで指定可能です。メッセージ管理権限が必要です。'
+        'details': '指定した数のメッセージを削除します。ユーザーを指定すると、そのユーザーのメッセージのみを削除します。1-100件まで指定可能です。管理者権限が必要です。'
     },
     'meigen_channel_setting': {
         'description': '名言を指定間隔で送信するチャンネルを設定',
@@ -1949,12 +1962,12 @@ COMMAND_HELP = {
     'timenuke': {
         'description': '指定した時間間隔でチャンネルを定期的にnuke',
         'usage': '/timenuke <間隔>',
-        'details': '実行したチャンネルを指定した間隔で定期的に再生成します。間隔は1m（分）、2h（時間）、1d（日）の形式で指定できます。最小間隔は1分です。チャンネル内のメッセージは全て削除されますが、チャンネル設定は引き継がれます。チャンネル管理権限が必要です。'
+        'details': '実行したチャンネルを指定した間隔で定期的に再生成します。間隔は1m（分）、2h（時間）、1d（日）の形式で指定できます。最小間隔は1分です。チャンネル内のメッセージは全て削除されますが、チャンネル設定は引き継がれます。管理者権限が必要です。'
     },
     'stop-timenuke': {
         'description': '定期nukeを停止',
         'usage': '/stop-timenuke',
-        'details': '現在設定されている定期ヌークを停止します。チャンネル管理権限が必要です。'
+        'details': '現在設定されている定期ヌークを停止します。管理者権限が必要です。'
     }
 }
 
@@ -2225,8 +2238,8 @@ async def timenuke_command(interaction: discord.Interaction, interval: str):
         await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
         return
 
-    if not interaction.user.guild_permissions.manage_channels:
-        await interaction.response.send_message('❌ チャンネル管理権限が必要です。', ephemeral=True)
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
 
     # Parse interval
@@ -2294,8 +2307,8 @@ async def stop_timenuke_command(interaction: discord.Interaction):
         await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
         return
 
-    if not interaction.user.guild_permissions.manage_channels:
-        await interaction.response.send_message('❌ チャンネル管理権限が必要です。', ephemeral=True)
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
 
     guild_id = str(interaction.guild.id)
@@ -2545,209 +2558,7 @@ async def temp_mute(interaction: discord.Interaction, user: discord.Member, dura
     except Exception as e:
         await interaction.response.send_message(f'❌ エラーが発生しました: {str(e)}', ephemeral=True)
 
-# Vending machine system
-class VendingMachineView(discord.ui.View):
-    def __init__(self, products):
-        super().__init__(timeout=None)
-        self.products = products
-        self.setup_buttons()
 
-    def setup_buttons(self):
-        for i, product in enumerate(self.products[:25]):  # Max 25 buttons
-            button = discord.ui.Button(
-                label=f"{product['name']} - ¥{product['price']}",
-                style=discord.ButtonStyle.primary,
-                custom_id=f"vending_{i}",
-                emoji="🛒"
-            )
-            button.callback = self.create_purchase_callback(i)
-            self.add_item(button)
-
-    def create_purchase_callback(self, product_index):
-        async def purchase_callback(interaction):
-            product = self.products[product_index]
-            
-            # Create payment confirmation view
-            payment_view = PaymentConfirmationView(product, interaction.user.id)
-            
-            embed = discord.Embed(
-                title='💳 お支払い確認',
-                description=f'**商品:** {product["name"]}\n**価格:** ¥{product["price"]}\n\n下のPayPayリンクから支払いを行い、完了後に「支払い完了」ボタンを押してください。',
-                color=0x00ff99
-            )
-            embed.add_field(
-                name='PayPayリンク',
-                value=f'[こちらから支払い]({product["paypay_link"]})',
-                inline=False
-            )
-            embed.set_footer(text='支払い後、管理者が確認して商品をお送りします')
-            
-            await interaction.response.send_message(embed=embed, view=payment_view, ephemeral=True)
-        
-        return purchase_callback
-
-class PaymentConfirmationView(discord.ui.View):
-    def __init__(self, product, user_id):
-        super().__init__(timeout=300)
-        self.product = product
-        self.user_id = user_id
-
-    @discord.ui.button(label='💰 支払い完了', style=discord.ButtonStyle.success, emoji='💰')
-    async def payment_completed(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Find admin confirmation channel
-        admin_channel = discord.utils.get(interaction.guild.text_channels, name="購入確認")
-        if not admin_channel:
-            # Try to create admin channel
-            try:
-                admin_channel = await interaction.guild.create_text_channel("購入確認")
-            except:
-                await interaction.response.send_message('❌ 管理者チャンネルが見つかりません。', ephemeral=True)
-                return
-
-        # Create admin confirmation view
-        admin_view = AdminConfirmationView(self.product, self.user_id, interaction.user)
-        
-        embed = discord.Embed(
-            title='🛒 購入確認が必要です',
-            description=f'**購入者:** {interaction.user.mention}\n**商品:** {self.product["name"]}\n**価格:** ¥{self.product["price"]}',
-            color=0xff9900
-        )
-        embed.add_field(
-            name='PayPayリンク',
-            value=f'[支払い確認]({self.product["paypay_link"]})',
-            inline=False
-        )
-        embed.set_footer(text='管理者は支払いを確認後、適切なボタンを押してください')
-        
-        await admin_channel.send(embed=embed, view=admin_view)
-        await interaction.response.send_message('✅ 支払い完了の報告を受け付けました。管理者が確認後、DMで商品をお送りします。', ephemeral=True)
-
-class AdminConfirmationView(discord.ui.View):
-    def __init__(self, product, user_id, user):
-        super().__init__(timeout=None)
-        self.product = product
-        self.user_id = user_id
-        self.user = user
-
-    @discord.ui.button(label='✅ 支払い確認済み', style=discord.ButtonStyle.success, emoji='✅')
-    async def confirm_payment(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
-            return
-
-        # Send product to user via DM
-        try:
-            dm_embed = discord.Embed(
-                title='🎉 商品お渡し',
-                description=f'お買い上げありがとうございます！\n\n**商品:** {self.product["name"]}\n**内容:** {self.product["content"]}',
-                color=0x00ff00
-            )
-            dm_embed.set_footer(text=f'購入元: {interaction.guild.name}')
-            
-            await self.user.send(embed=dm_embed)
-            
-            # Update the admin message
-            embed = discord.Embed(
-                title='✅ 処理完了',
-                description=f'**購入者:** {self.user.mention}\n**商品:** {self.product["name"]}\n**処理者:** {interaction.user.mention}\n**処理日時:** <t:{int(datetime.now().timestamp())}:F>',
-                color=0x00ff00
-            )
-            
-            await interaction.response.edit_message(embed=embed, view=None)
-            
-        except discord.Forbidden:
-            await interaction.response.send_message('❌ ユーザーにDMを送信できませんでした。', ephemeral=True)
-
-    @discord.ui.button(label='❌ 支払い未確認', style=discord.ButtonStyle.danger, emoji='❌')
-    async def deny_payment(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
-            return
-
-        # Notify user about payment issue
-        try:
-            dm_embed = discord.Embed(
-                title='❌ 支払い確認できませんでした',
-                description=f'申し訳ございませんが、以下の商品の支払いが確認できませんでした。\n\n**商品:** {self.product["name"]}\n**価格:** ¥{self.product["price"]}\n\nもう一度お支払いいただくか、サポートにお問い合わせください。',
-                color=0xff0000
-            )
-            
-            await self.user.send(embed=dm_embed)
-            
-            # Update the admin message
-            embed = discord.Embed(
-                title='❌ 支払い未確認',
-                description=f'**購入者:** {self.user.mention}\n**商品:** {self.product["name"]}\n**処理者:** {interaction.user.mention}\n**処理日時:** <t:{int(datetime.now().timestamp())}:F>',
-                color=0xff0000
-            )
-            
-            await interaction.response.edit_message(embed=embed, view=None)
-            
-        except discord.Forbidden:
-            await interaction.response.send_message('❌ ユーザーにDMを送信できませんでした。', ephemeral=True)
-
-@bot.tree.command(name='setup-vending', description='自動販売機を設置')
-async def setup_vending(interaction: discord.Interaction):
-    try:
-        await interaction.response.defer()
-        
-        if not is_allowed_server(interaction.guild.id):
-            await interaction.followup.send('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-            return
-
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.followup.send('❌ 管理者権限が必要です。', ephemeral=True)
-            return
-
-        # Sample products (you can modify these)
-        products = [
-            {
-                "name": "デジタルコンテンツA",
-                "price": 1000,
-                "content": "特別なデジタルコンテンツをお渡しします。",
-                "paypay_link": "https://pay.paypay.ne.jp/example1"
-            },
-            {
-                "name": "プレミアムサービス",
-                "price": 2500,
-                "content": "プレミアムサービス1ヶ月分のアクセス権をお渡しします。",
-                "paypay_link": "https://pay.paypay.ne.jp/example2"
-            },
-            {
-                "name": "限定アイテム",
-                "price": 500,
-                "content": "限定アイテムをお渡しします。",
-                "paypay_link": "https://pay.paypay.ne.jp/example3"
-            }
-        ]
-
-        embed = discord.Embed(
-            title='🏪 自動販売機',
-            description='購入したい商品のボタンをクリックしてください。\n\n**購入の流れ:**\n1. 商品ボタンをクリック\n2. PayPayリンクから支払い\n3. 「支払い完了」ボタンを押す\n4. 管理者確認後、DMで商品お渡し',
-            color=0x00ff99
-        )
-        
-        for product in products:
-            embed.add_field(
-                name=f'🛒 {product["name"]}',
-                value=f'**価格:** ¥{product["price"]}\n{product["content"][:50]}...',
-                inline=True
-            )
-        
-        embed.set_footer(text='PayPay支払い対応 | 24時間自動対応')
-        
-        view = VendingMachineView(products)
-        await interaction.followup.send(embed=embed, view=view)
-        
-    except Exception as e:
-        print(f"Error in setup-vending command: {e}")
-        try:
-            if not interaction.response.is_done():
-                await interaction.response.send_message(f'❌ エラーが発生しました: {str(e)}', ephemeral=True)
-            else:
-                await interaction.followup.send(f'❌ エラーが発生しました: {str(e)}', ephemeral=True)
-        except:
-            pass
 
 # Support system
 class SupportResponseView(discord.ui.View):
@@ -3073,11 +2884,6 @@ COMMAND_HELP.update({
         'description': 'ユーザーを一時的にミュート',
         'usage': '/tempmute <ユーザー> <期間> [理由]',
         'details': '指定した期間ユーザーをミュートします。期間は30m（分）、2h（時間）、1d（日）の形式で指定。最大28日まで。メンバータイムアウト権限が必要です。'
-    },
-    'setup-vending': {
-        'description': '自動販売機を設置',
-        'usage': '/setup-vending',
-        'details': 'PayPayリンク付きの自動販売機を設置します。購入フローは自動化され、管理者確認後にDMで商品をお渡しします。管理者権限が必要です。'
     },
     'support-request': {
         'description': 'サポートを要請',
