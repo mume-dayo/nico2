@@ -65,8 +65,9 @@ def is_allowed_server(guild_id):
 async def on_ready():
     print(f'{bot.user} has connected to Discord!')
 
-    # Set bot status/presence
-    activity = discord.Game(name="むめー専用botをプレイ中...")
+    # Set bot status/presence based on server count
+    server_count = len(bot.guilds)
+    activity = discord.Game(name=f"{server_count}サーバをプレイ中...")
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
     # Load configurations
@@ -89,6 +90,26 @@ async def on_ready():
             meigen_tasks[guild_id] = task
     try:
         synced = await bot.tree.sync()
+
+
+# Update bot status when joining or leaving servers
+@bot.event
+async def on_guild_join(guild):
+    """Update status when bot joins a server"""
+    server_count = len(bot.guilds)
+    activity = discord.Game(name=f"{server_count}サーバをプレイ中...")
+    await bot.change_presence(status=discord.Status.online, activity=activity)
+    print(f"Joined guild: {guild.name} (ID: {guild.id}). Now in {server_count} servers.")
+
+@bot.event
+async def on_guild_remove(guild):
+    """Update status when bot leaves a server"""
+    server_count = len(bot.guilds)
+    activity = discord.Game(name=f"{server_count}サーバをプレイ中...")
+    await bot.change_presence(status=discord.Status.online, activity=activity)
+    print(f"Left guild: {guild.name} (ID: {guild.id}). Now in {server_count} servers.")
+
+
         print(f'Synced {len(synced)} command(s)')
     except Exception as e:
         print(f'Failed to sync commands: {e}')
