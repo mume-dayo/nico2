@@ -140,40 +140,9 @@ async def on_message(message):
     user_id = message.author.id
     current_time = time.time()
 
-    # Check if message author is a bot
+    # Skip bot message processing - no longer delete or ban bots
     if message.author.bot:
-        # Track consecutive bot messages
-        if user_id not in bot_message_count:
-            bot_message_count[user_id] = 0
-
-        bot_message_count[user_id] += 1
-
-        # If bot posts 2 or more consecutive messages, delete and ban
-        if bot_message_count[user_id] >= 2:
-            try:
-                await message.delete()
-                await message.guild.ban(message.author, reason="Bot spam detected - 2+ consecutive messages")
-
-                # Send warning in channel
-                warning_embed = discord.Embed(
-                    title="🚫 Bot Ban",
-                    description=f"Bot {message.author.mention} has been banned for consecutive message spam.",
-                    color=0xff0000
-                )
-                await message.channel.send(embed=warning_embed, delete_after=10)
-
-                # Reset counter
-                if user_id in bot_message_count:
-                    del bot_message_count[user_id]
-
-            except discord.Forbidden:
-                print(f"Failed to ban bot {message.author.name} - insufficient permissions")
-            except Exception as e:
-                print(f"Error banning bot: {e}")
-    else:
-        # Reset bot message count for human users
-        if user_id in bot_message_count:
-            del bot_message_count[user_id]
+        return
 
     # Anti-spam for human users - only target identical consecutive messages
     if not message.author.bot:
