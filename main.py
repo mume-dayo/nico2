@@ -1441,7 +1441,7 @@ async def close_ticket_command(interaction: discord.Interaction, ticket_id: int)
 
 # Server logging commands
 @bot.tree.command(name='setup-server-log', description='サーバー間ログ転送を設定')
-async def setup_server_log(interaction: discord.Interaction, target_server_id: str):
+async def setup_server_log(interaction: discord.Interaction, target_server_id: str, channel_id: str = None):
     if not is_allowed_server(interaction.guild.id):
         await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
         return
@@ -1465,13 +1465,30 @@ async def setup_server_log(interaction: discord.Interaction, target_server_id: s
 
         source_guild_id = str(interaction.guild.id)
         
-        # Update configuration
-        server_log_configs[source_guild_id] = target_server_id
+        # Determine which channels to log
+        if channel_id:
+            # Single channel mode
+            try:
+                source_channel = bot.get_channel(int(channel_id))
+                if not source_channel or source_channel.guild.id != interaction.guild.id:
+                    await interaction.response.send_message('❌ 指定されたチャンネルが見つからないか、このサーバーのチャンネルではありません。', ephemeral=True)
+                    return
+                mode_text = f'チャンネル #{source_channel.name}'
+                # Store configuration with specific channel
+                server_log_configs[source_guild_id] = {"target_server": target_server_id, "channel_id": channel_id}
+            except ValueError:
+                await interaction.response.send_message('❌ 無効なチャンネルIDです。数字のみを入力してください。', ephemeral=True)
+                return
+        else:
+            # All channels mode
+            mode_text = 'サーバーの全チャンネル'
+            server_log_configs[source_guild_id] = {"target_server": target_server_id, "channel_id": None}
+        
         save_server_log_config()
 
         embed = discord.Embed(
             title='✅ サーバーログ設定完了',
-            description=f'**送信元:** {interaction.guild.name}\n**転送先:** {target_guild.name}\n\nこのサーバーのすべてのメッセージが転送先サーバーにログとして送信されます。',
+            description=f'**送信元:** {interaction.guild.name}\n**転送先:** {target_guild.name}\n**対象:** {mode_text}\n\nメッセージが転送先サーバーにログとして送信されます。',
             color=0x00ff00
         )
         embed.add_field(
@@ -1502,13 +1519,28 @@ async def server_log_status(interaction: discord.Interaction):
     )
 
     if source_guild_id in server_log_configs:
-        target_server_id = server_log_configs[source_guild_id]
+        config = server_log_configs[source_guild_id]
+        # Handle both old and new format
+        if isinstance(config, dict):
+            target_server_id = config["target_server"]
+            channel_id = config.get("channel_id")
+        else:
+            # Old format (backward compatibility)
+            target_server_id = config
+            channel_id = None
+            
         target_guild = bot.get_guild(int(target_server_id))
         target_name = target_guild.name if target_guild else f"不明なサーバー (ID: {target_server_id})"
         
+        if channel_id:
+            source_channel = bot.get_channel(int(channel_id))
+            channel_text = f'#{source_channel.name}' if source_channel else f'チャンネルID: {channel_id}'
+        else:
+            channel_text = '全チャンネル'
+        
         embed.add_field(
             name='🟢 ログ転送設定',
-            value=f'**状態:** 有効\n**転送先:** {target_name}\n**サーバーID:** {target_server_id}',
+            value=f'**状態:** 有効\n**転送先:** {target_name}\n**サーバーID:** {target_server_id}\n**対象:** {channel_text}',
             inline=False
         )
         embed.add_field(
@@ -1525,7 +1557,13 @@ async def server_log_status(interaction: discord.Interaction):
 
     # Show reverse logging (if this server is a target)
     reverse_configs = []
-    for source_id, target_id in server_log_configs.items():
+    for source_id, config in server_log_configs.items():
+        # Handle both old and new format
+        if isinstance(config, dict):
+            target_id = config["target_server"]
+        else:
+            target_id = config
+            
         if target_id == source_guild_id:
             source_guild = bot.get_guild(int(source_id))
             source_name = source_guild.name if source_guild else f"不明なサーバー (ID: {source_id})"
@@ -1834,8 +1872,8 @@ COMMAND_HELP = {
     },
     'setup-server-log': {
         'description': 'サーバー間ログ転送を設定',
-        'usage': '/setup-server-log <転送先サーバーID>',
-        'details': '現在のサーバーから指定したサーバーにすべてのメッセージをログとして転送します。対応するチャンネルが存在しない場合は自動作成されます。サーバー管理権限が必要です。'
+        'usage': '/setup-server-log <転送先サーバーID> [チャンネルID]',
+        'details': '現在のサーバーから指定したサーバーにメッセージをログとして転送します。チャンネルIDを指定した場合はそのチャンネルのみをログ転送し、省略した場合は全チャンネルが対象になります。対応するチャンネルが存在しない場合は自動作成されます。サーバー管理権限が必要です。'
     },
     'server-log-status': {
         'description': 'サーバーログ設定状況を確認',
@@ -1996,7 +2034,19 @@ async def on_message_for_server_logging(message):
     if source_guild_id not in server_log_configs:
         return
     
-    target_guild_id = server_log_configs[source_guild_id]
+    config = server_log_configs[source_guild_id]
+    # Handle both old and new format
+    if isinstance(config, dict):
+        target_guild_id = config["target_server"]
+        specific_channel_id = config.get("channel_id")
+        # If specific channel is set, only log messages from that channel
+        if specific_channel_id and str(message.channel.id) != specific_channel_id:
+            return
+    else:
+        # Old format (backward compatibility)
+        target_guild_id = config
+        specific_channel_id = None
+    
     target_guild = bot.get_guild(int(target_guild_id))
     
     if not target_guild:
@@ -2760,9 +2810,11 @@ async def support_request(interaction: discord.Interaction, content: str):
     
     await interaction.response.send_message('✅ サポート要請を送信しました。対応者が決まり次第、DMでご連絡します。', ephemeral=True)
 
-# All message copy command
-@bot.tree.command(name='allmessage', description='サーバーの全メッセージを指定サーバーにコピー')
-async def allmessage_command(interaction: discord.Interaction, target_server_id: str):
+
+
+# Allmessage command
+@bot.tree.command(name='allmessage', description='サーバーの全メッセージを指定したサーバーにコピー')
+async def allmessage_command(interaction: discord.Interaction, target_server_id: str, channel_id: str = None):
     if not is_allowed_server(interaction.guild.id):
         await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
         return
@@ -2781,70 +2833,104 @@ async def allmessage_command(interaction: discord.Interaction, target_server_id:
         
         # Check if bot has permissions in target server
         if not target_guild.me.guild_permissions.manage_channels:
-            await interaction.response.send_message('❌ コピー先サーバーでチャンネル管理権限が必要です。', ephemeral=True)
+            await interaction.response.send_message('❌ 転送先サーバーでチャンネル管理権限が必要です。', ephemeral=True)
             return
 
-        await interaction.response.defer()
+        # Determine which channels to process
+        if channel_id:
+            # Single channel mode
+            try:
+                source_channel = bot.get_channel(int(channel_id))
+                if not source_channel or source_channel.guild.id != interaction.guild.id:
+                    await interaction.response.send_message('❌ 指定されたチャンネルが見つからないか、このサーバーのチャンネルではありません。', ephemeral=True)
+                    return
+                channels_to_process = [source_channel]
+                mode_text = f'チャンネル #{source_channel.name}'
+            except ValueError:
+                await interaction.response.send_message('❌ 無効なチャンネルIDです。数字のみを入力してください。', ephemeral=True)
+                return
+        else:
+            # All channels mode
+            channels_to_process = interaction.guild.text_channels
+            mode_text = 'サーバーの全チャンネル'
 
-        source_guild = interaction.guild
+        # Automatically set up server logging
+        source_guild_id = str(interaction.guild.id)
+        if channel_id:
+            # Set up logging for specific channel
+            server_log_configs[source_guild_id] = {"target_server": target_server_id, "channel_id": channel_id}
+        else:
+            # Set up logging for all channels
+            server_log_configs[source_guild_id] = {"target_server": target_server_id, "channel_id": None}
+        save_server_log_config()
+
+        # Send immediate response
+        await interaction.response.send_message(
+            f'✅ メッセージコピーを開始しました。\n**転送先:** {target_guild.name}\n**対象:** {mode_text}\n\n処理には時間がかかる場合があります。進行状況は別メッセージで更新されます。\n\n🔄 **サーバーログも自動で設定されました。**', 
+            ephemeral=True
+        )
+
+        # Find a channel to send status updates
+        status_channel = interaction.channel
+
+        # Create initial status message
+        status_embed = discord.Embed(
+            title='📋 メッセージコピー進行状況',
+            description=f'**送信元:** {interaction.guild.name}\n**転送先:** {target_guild.name}\n**対象:** {mode_text}\n\nメッセージをコピーしています...',
+            color=0x0099ff
+        )
+        status_embed.add_field(
+            name='進行状況',
+            value='開始中...',
+            inline=False
+        )
+        status_embed.set_footer(text=f'開始者: {interaction.user.display_name}')
+        
+        try:
+            status_message = await status_channel.send(embed=status_embed)
+        except:
+            # If we can't send to the original channel, just continue without status updates
+            status_message = None
+
         copied_messages = 0
         created_channels = 0
-        
-        # Create a status embed
-        status_embed = discord.Embed(
-            title='📋 全メッセージコピー進行中...',
-            description=f'**送信元:** {source_guild.name}\n**コピー先:** {target_guild.name}',
-            color=0xff9900
-        )
-        status_embed.add_field(name='進行状況', value='開始中...', inline=False)
-        
-        status_message = await interaction.followup.send(embed=status_embed)
 
-        # Process each text channel
-        for channel in source_guild.text_channels:
+        # Process each channel
+        for channel in channels_to_process:
             try:
                 # Find or create corresponding channel in target server
-                target_channel_name = f"{source_guild.name}-{channel.name}"
-                target_channel = discord.utils.get(target_guild.text_channels, name=target_channel_name)
+                target_channel = discord.utils.get(target_guild.text_channels, name=channel.name)
                 
                 if not target_channel:
-                    # Create category if needed
+                    # Create channel if it doesn't exist
                     category = None
                     if channel.category:
-                        category_name = f"{source_guild.name}-{channel.category.name}"
-                        category = discord.utils.get(target_guild.categories, name=category_name)
+                        category = discord.utils.get(target_guild.categories, name=channel.category.name)
                         if not category:
-                            category = await target_guild.create_category(category_name)
+                            category = await target_guild.create_category(channel.category.name)
                     
-                    # Create the channel
                     target_channel = await target_guild.create_text_channel(
-                        name=target_channel_name,
+                        name=channel.name,
                         category=category,
-                        topic=f"Copy from {source_guild.name}#{channel.name}"
+                        topic=f"Copy from {interaction.guild.name}#{channel.name}"
                     )
                     created_channels += 1
 
-                # Copy messages from the channel
+                # Copy messages from the channel (including all bot messages and messages from before bot joined)
                 channel_messages = 0
                 async for message in channel.history(limit=None, oldest_first=True):
-                    if message.author.bot and message.author != bot.user:
-                        continue  # Skip other bot messages
                     
                     # Create embed for the message
                     embed = discord.Embed(
-                        description=message.content if message.content else "*メッセージ内容なし*",
-                        color=0x0099ff,
+                        description=message.content if message.content else "(添付ファイルのみ)",
+                        color=0x00ff99,
                         timestamp=message.created_at
                     )
-                    
-                    # Set author info
                     embed.set_author(
                         name=f"{message.author.display_name} ({message.author.name})",
                         icon_url=message.author.avatar.url if message.author.avatar else None
                     )
-                    
-                    # Add channel info
-                    embed.set_footer(text=f"Original: #{channel.name} | ID: {message.id}")
+                    embed.set_footer(text=f"Original: {interaction.guild.name} #{channel.name}")
                     
                     # Handle attachments
                     if message.attachments:
@@ -2852,43 +2938,35 @@ async def allmessage_command(interaction: discord.Interaction, target_server_id:
                         for attachment in message.attachments:
                             attachment_info.append(f"[{attachment.filename}]({attachment.url})")
                         
-                        embed.add_field(
-                            name="📎 添付ファイル",
-                            value="\n".join(attachment_info),
-                            inline=False
-                        )
-                    
-                    # Handle embeds from original message
-                    if message.embeds:
-                        embed.add_field(
-                            name="📋 元メッセージのEmbed",
-                            value=f"{len(message.embeds)}個のEmbedがありました",
-                            inline=False
-                        )
+                        if attachment_info:
+                            embed.add_field(
+                                name="📎 添付ファイル",
+                                value="\n".join(attachment_info),
+                                inline=False
+                            )
                     
                     try:
                         await target_channel.send(embed=embed)
                         copied_messages += 1
                         channel_messages += 1
                         
-                        # Rate limiting - wait a bit between messages
-                        await asyncio.sleep(0.1)
-                        
-                        # Update status every 50 messages
-                        if copied_messages % 50 == 0:
-                            status_embed.clear_fields()
-                            status_embed.add_field(
-                                name='進行状況',
-                                value=f'コピー済みメッセージ: {copied_messages}\n作成チャンネル: {created_channels}\n現在処理中: #{channel.name}',
-                                inline=False
-                            )
+                        # Update status every 100 messages to reduce API calls
+                        if copied_messages % 100 == 0 and status_message:
                             try:
+                                status_embed.clear_fields()
+                                status_embed.add_field(
+                                    name='進行状況',
+                                    value=f'コピー済みメッセージ: {copied_messages}\n作成チャンネル: {created_channels}\n現在処理中: #{channel.name}',
+                                    inline=False
+                                )
                                 await status_message.edit(embed=status_embed)
-                            except:
-                                pass
+                            except Exception as e:
+                                print(f"Status update error: {e}")
+                                # If status update fails, just continue without updates
+                                status_message = None
                         
                     except Exception as e:
-                        print(f"Error copying message {message.id}: {e}")
+                        print(f"Failed to copy message: {e}")
                         continue
                 
                 print(f"Copied {channel_messages} messages from #{channel.name}")
@@ -2899,38 +2977,66 @@ async def allmessage_command(interaction: discord.Interaction, target_server_id:
 
         # Final status update
         final_embed = discord.Embed(
-            title='✅ 全メッセージコピー完了！',
-            description=f'**送信元:** {source_guild.name}\n**コピー先:** {target_guild.name}',
+            title='✅ メッセージコピー完了',
+            description=f'**送信元:** {interaction.guild.name}\n**転送先:** {target_guild.name}',
             color=0x00ff00
         )
         final_embed.add_field(
-            name='📊 処理結果',
-            value=f'**コピー済みメッセージ:** {copied_messages}件\n**作成チャンネル:** {created_channels}個\n**処理完了時刻:** <t:{int(datetime.now().timestamp())}:F>',
+            name='📊 統計情報',
+            value=f'**コピーしたメッセージ:** {copied_messages}件\n**作成したチャンネル:** {created_channels}個',
             inline=False
         )
-        final_embed.set_footer(text='全てのメッセージが正常にコピーされました')
+        final_embed.set_footer(text=f'完了者: {interaction.user.display_name} | 全てのメッセージが正常にコピーされました')
         
-        await status_message.edit(embed=final_embed)
+        if status_message:
+            try:
+                await status_message.edit(embed=final_embed)
+            except Exception as e:
+                print(f"Final status update error: {e}")
+                try:
+                    await status_channel.send(embed=final_embed)
+                except Exception as e2:
+                    print(f"Failed to send completion message: {e2}")
+        else:
+            try:
+                await status_channel.send(embed=final_embed)
+            except Exception as e:
+                print(f"Failed to send completion message: {e}")
 
     except ValueError:
-        await interaction.followup.send('❌ 無効なサーバーIDです。数字のみを入力してください。', ephemeral=True)
-    except Exception as e:
-        error_embed = discord.Embed(
-            title='❌ エラーが発生しました',
-            description=f'メッセージコピー中にエラーが発生しました: {str(e)}',
-            color=0xff0000
-        )
         try:
-            await interaction.followup.send(embed=error_embed, ephemeral=True)
+            await interaction.response.send_message('❌ 無効なサーバーIDです。数字のみを入力してください。', ephemeral=True)
         except:
-            print(f"Error in allmessage command: {e}")
+            try:
+                await interaction.followup.send('❌ 無効なサーバーIDです。数字のみを入力してください。', ephemeral=True)
+            except:
+                print("Failed to send error message about invalid server ID")
+    except Exception as e:
+        print(f"Error in allmessage command: {e}")
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f'❌ エラーが発生しました: {str(e)}', ephemeral=True)
+            else:
+                await interaction.followup.send(f'❌ エラーが発生しました: {str(e)}', ephemeral=True)
+        except Exception as e2:
+            print(f"Failed to send error message: {e2}")
+            # Try to send error message to the channel directly
+            try:
+                error_embed = discord.Embed(
+                    title='❌ allmessageコマンドエラー',
+                    description=f'エラーが発生しました: {str(e)}',
+                    color=0xff0000
+                )
+                await interaction.channel.send(embed=error_embed)
+            except Exception as e3:
+                print(f"Failed to send error message to channel: {e3}")
 
 # Add to help system
 COMMAND_HELP.update({
     'allmessage': {
-        'description': 'サーバーの全メッセージを指定サーバーにコピー',
-        'usage': '/allmessage <コピー先サーバーID>',
-        'details': '現在のサーバーの全チャンネルの全メッセージを指定したサーバーにコピーします。チャンネルが存在しない場合は自動作成されます。大量のメッセージがある場合は時間がかかります。管理者権限が必要です。'
+        'description': 'サーバーの全メッセージを指定したサーバーにコピー',
+        'usage': '/allmessage <転送先サーバーID> [チャンネルID]',
+        'details': 'サーバーの全チャンネル、または指定したチャンネルのメッセージを転送先サーバーにコピーします。チャンネルIDを指定した場合はそのチャンネルのみをコピーします。チャンネルが存在しない場合は自動作成されます。管理者権限が必要です。'
     },
     'warn': {
         'description': 'ユーザーに警告を与える',
