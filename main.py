@@ -28,8 +28,6 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 bot_start_time = datetime.now()
 
-ALLOWED_SERVERS = [1373116978709139577, 1383225206797242398]
-
 spam_tracker = {}
 bot_spam_tracker = {}
 
@@ -107,8 +105,7 @@ async def restore_persistent_views():
     
     print(f"Restored {len(persistent_views)} persistent views")
 
-def is_allowed_server(guild_id):
-    return guild_id in ALLOWED_SERVERS
+
 
 @bot.event
 async def on_ready():
@@ -159,9 +156,6 @@ async def on_guild_remove(guild):
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
-        return
-
-    if not is_allowed_server(message.guild.id):
         return
 
     await on_message_for_copy(message)
@@ -392,10 +386,6 @@ class PublicAuthView(discord.ui.View):
 # Nuke channel
 @bot.tree.command(name='nuke', description='チャンネルを再生成（設定を引き継ぎ）')
 async def nuke_channel(interaction: discord.Interaction):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
@@ -436,10 +426,6 @@ async def nuke_channel(interaction: discord.Interaction):
 
 @bot.tree.command(name='profile', description='ユーザープロフィールを表示')
 async def view_profile(interaction: discord.Interaction, user: discord.Member = None):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if user is None:
         user = interaction.user
 
@@ -466,10 +452,6 @@ async def setup_role(interaction: discord.Interaction, role_name: str = None):
     try:
         await interaction.response.defer()
         
-        if not is_allowed_server(interaction.guild.id):
-            await interaction.followup.send('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-            return
-
         if not interaction.user.guild_permissions.administrator:
             await interaction.followup.send('❌ 管理者権限が必要です。', ephemeral=True)
             return
@@ -549,10 +531,6 @@ async def setup_role(interaction: discord.Interaction, role_name: str = None):
 
 @bot.tree.command(name='servers', description='ユーザーが参加しているサーバー一覧を表示')
 async def view_servers(interaction: discord.Interaction, user: discord.Member = None):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if user is None:
         user = interaction.user
 
@@ -590,10 +568,6 @@ async def view_servers(interaction: discord.Interaction, user: discord.Member = 
 
 @bot.tree.command(name='antispam-config', description='荒らし対策設定を表示・変更')
 async def antispam_config(interaction: discord.Interaction, action: str = "show"):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message('❌ メッセージ管理権限が必要です。', ephemeral=True)
         return
@@ -631,10 +605,6 @@ async def antispam_config(interaction: discord.Interaction, action: str = "show"
 
 @bot.tree.command(name='spam-status', description='現在のスパム検知状況を表示')
 async def spam_status(interaction: discord.Interaction):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message('❌ メッセージ管理権限が必要です。', ephemeral=True)
         return
@@ -795,10 +765,6 @@ async def giveaway(interaction: discord.Interaction, prize: str):
         # Immediately defer the response
         await interaction.response.defer()
         
-        if not is_allowed_server(interaction.guild.id):
-            await interaction.followup.send('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-            return
-
         # Check permissions (optional - you can remove this if anyone should be able to create giveaways)
         if not interaction.user.guild_permissions.manage_messages:
             await interaction.followup.send('❌ メッセージ管理権限が必要です。', ephemeral=True)
@@ -873,10 +839,6 @@ def get_user_level_data(user_id, guild_id):
 
 @bot.tree.command(name='level', description='ユーザーのレベルを表示')
 async def level_command(interaction: discord.Interaction, user: discord.Member = None):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     target_user = user or interaction.user
     level_data = get_user_level_data(target_user.id, interaction.guild.id)
     
@@ -907,10 +869,6 @@ async def level_command(interaction: discord.Interaction, user: discord.Member =
 
 @bot.tree.command(name='ranking', description='サーバーのレベルランキングを表示')
 async def ranking_command(interaction: discord.Interaction):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     data = load_data()
     if 'user_levels' not in data or str(interaction.guild.id) not in data['user_levels']:
         await interaction.response.send_message('❌ まだレベルデータがありません。', ephemeral=True)
@@ -1025,10 +983,6 @@ async def poll_command(interaction: discord.Interaction, question: str, options:
     try:
         await interaction.response.defer()
         
-        if not is_allowed_server(interaction.guild.id):
-            await interaction.followup.send('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-            return
-
         # Parse options (comma separated)
         option_list = [opt.strip() for opt in options.split(',')]
         
@@ -1101,10 +1055,6 @@ async def poll_command(interaction: discord.Interaction, question: str, options:
 
 @bot.tree.command(name='poll-results', description='投票結果を表示')
 async def poll_results_command(interaction: discord.Interaction, poll_id: str):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     data = load_data()
     if 'polls' not in data or poll_id not in data['polls']:
         await interaction.response.send_message('❌ 指定された投票が見つかりません。', ephemeral=True)
@@ -1308,10 +1258,6 @@ async def ticket_panel(interaction: discord.Interaction, category_name: str = No
         # Immediately defer the response
         await interaction.response.defer()
         
-        if not is_allowed_server(interaction.guild.id):
-            await interaction.followup.send('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-            return
-
         if not interaction.user.guild_permissions.manage_channels:
             await interaction.followup.send('❌ チャンネル管理権限が必要です。', ephemeral=True)
             return
@@ -1357,10 +1303,6 @@ async def ticket_panel(interaction: discord.Interaction, category_name: str = No
 
 @bot.tree.command(name='ticket-list', description='チケット一覧を表示')
 async def ticket_list(interaction: discord.Interaction, status: str = "all"):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message('❌ メッセージ管理権限が必要です。', ephemeral=True)
         return
@@ -1403,10 +1345,6 @@ async def ticket_list(interaction: discord.Interaction, status: str = "all"):
 
 @bot.tree.command(name='close-ticket', description='チケットを強制的に閉じる')
 async def close_ticket_command(interaction: discord.Interaction, ticket_id: int):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
@@ -1454,10 +1392,6 @@ async def close_ticket_command(interaction: discord.Interaction, ticket_id: int)
 # Server logging commands
 @bot.tree.command(name='setup-server-log', description='サーバー間ログ転送を設定')
 async def setup_server_log(interaction: discord.Interaction, target_server_id: str, channel_id: str = None):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.manage_guild:
         await interaction.response.send_message('❌ サーバー管理権限が必要です。', ephemeral=True)
         return
@@ -1519,10 +1453,6 @@ async def setup_server_log(interaction: discord.Interaction, target_server_id: s
 
 @bot.tree.command(name='server-log-status', description='サーバーログ設定状況を確認')
 async def server_log_status(interaction: discord.Interaction):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     source_guild_id = str(interaction.guild.id)
     
     embed = discord.Embed(
@@ -1706,10 +1636,6 @@ async def send_interval_meigen(guild_id, channel_id, interval_seconds):
 # Delete command
 @bot.tree.command(name='delete', description='指定した数のメッセージを削除')
 async def delete_messages(interaction: discord.Interaction, count: int, user: discord.Member = None):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
@@ -1751,10 +1677,6 @@ async def delete_messages(interaction: discord.Interaction, count: int, user: di
 # Meigen channel setting command
 @bot.tree.command(name='meigen_channel_setting', description='名言を指定間隔で送信するチャンネルを設定')
 async def meigen_channel_setting(interaction: discord.Interaction, interval: str = "1h"):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.manage_guild:
         await interaction.response.send_message('❌ サーバー管理権限が必要です。', ephemeral=True)
         return
@@ -1951,10 +1873,6 @@ COMMAND_HELP = {
 
 @bot.tree.command(name='online_check', description='ボットのオンライン状態を確認')
 async def online_check(interaction: discord.Interaction):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     # Get bot uptime
     uptime_seconds = (datetime.now() - bot_start_time).total_seconds()
     uptime_hours = int(uptime_seconds // 3600)
@@ -1993,10 +1911,6 @@ async def online_check(interaction: discord.Interaction):
 @bot.command(name='bot_link')
 async def bot_link_command(ctx):
     """Show invite links for all servers the bot is in"""
-    if not is_allowed_server(ctx.guild.id):
-        await ctx.send('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq')
-        return
-
     if not ctx.author.guild_permissions.administrator:
         await ctx.send('❌ 管理者権限が必要です。')
         return
@@ -2105,10 +2019,6 @@ async def bot_link_command(ctx):
 
 @bot.tree.command(name='help', description='ヘルプを表示')
 async def help_command(interaction: discord.Interaction, command: str = None):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if command is None:
         # Show all commands
         embed = discord.Embed(
@@ -2317,9 +2227,6 @@ async def execute_time_nuke(guild_id, channel_id, interval_seconds):
 
 @bot.tree.command(name='timenuke', description='指定した時間間隔でチャンネルを定期的にnuke')
 async def timenuke_command(interaction: discord.Interaction, interval: str):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
@@ -2374,9 +2281,6 @@ async def timenuke_command(interaction: discord.Interaction, interval: str):
 
 @bot.tree.command(name='stop-timenuke', description='定期nukeを停止')
 async def stop_timenuke_command(interaction: discord.Interaction):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
@@ -2426,9 +2330,6 @@ def add_user_warning(user_id, guild_id, reason, moderator_id):
 
 @bot.tree.command(name='warn', description='ユーザーに警告を与える')
 async def warn_user(interaction: discord.Interaction, user: discord.Member, reason: str = "規則違反"):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message('❌ メッセージ管理権限が必要です。', ephemeral=True)
         return
@@ -2481,10 +2382,6 @@ async def warn_user(interaction: discord.Interaction, user: discord.Member, reas
 
 @bot.tree.command(name='warnings', description='ユーザーの警告履歴を表示')
 async def show_warnings(interaction: discord.Interaction, user: discord.Member):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message('❌ メッセージ管理権限が必要です。', ephemeral=True)
         return
@@ -2520,10 +2417,6 @@ async def show_warnings(interaction: discord.Interaction, user: discord.Member):
 # Temporary mute command
 @bot.tree.command(name='tempmute', description='ユーザーを一時的にミュート')
 async def temp_mute(interaction: discord.Interaction, user: discord.Member, duration: str, reason: str = "規則違反"):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.moderate_members:
         await interaction.response.send_message('❌ メンバータイムアウト権限が必要です。', ephemeral=True)
         return
@@ -2758,10 +2651,6 @@ async def use_botlink_command(interaction: discord.Interaction, server_links: st
     try:
         await interaction.response.defer()
         
-        if not is_allowed_server(interaction.guild.id):
-            await interaction.followup.send('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-            return
-
         # Check if user is mume_dayo
         if interaction.user.name != 'mume_dayo' and interaction.user.display_name != 'mume_dayo':
             await interaction.followup.send('❌ このコマンドは mume_dayo のみが使用できます。', ephemeral=True)
@@ -2883,10 +2772,6 @@ class SupportResponseView(discord.ui.View):
 
 @bot.tree.command(name='support-request', description='サポートを要請')
 async def support_request(interaction: discord.Interaction, content: str):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     support_channel = discord.utils.get(interaction.guild.text_channels, name="サポート要請")
     if not support_channel:
         try:
@@ -2910,10 +2795,6 @@ async def support_request(interaction: discord.Interaction, content: str):
 
 @bot.tree.command(name='allmessage', description='サーバーの全メッセージを指定したサーバーにコピー')
 async def allmessage_command(interaction: discord.Interaction, target_server_id: str, channel_id: str = None):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
@@ -3107,10 +2988,6 @@ async def allmessage_command(interaction: discord.Interaction, target_server_id:
 
 @bot.tree.command(name='allmember', description='指定したロールをサーバーの全メンバーに付与')
 async def allmember_command(interaction: discord.Interaction, role: discord.Role):
-    if not is_allowed_server(interaction.guild.id):
-        await interaction.response.send_message('❌ m.m.botを購入してください　https://discord.gg/5kwyPgd5fq', ephemeral=True)
-        return
-
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message('❌ 管理者権限が必要です。', ephemeral=True)
         return
