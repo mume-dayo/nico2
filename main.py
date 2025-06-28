@@ -136,6 +136,9 @@ async def on_ready():
     try:
         synced = await bot.tree.sync()
         print(f'Synced {len(synced)} command(s)')
+        # Print synced commands for debugging
+        for cmd in synced:
+            print(f'- Synced command: /{cmd.name}')
     except Exception as e:
         print(f'Failed to sync commands: {e}')
 
@@ -675,9 +678,18 @@ class GiveawayView(discord.ui.View):
         )
         embed.set_footer(text='Good luck! 🍀')
 
+        # Get the original message and edit it
         try:
-            await interaction.edit_original_response(embed=embed, view=self)
-        except:
+            # Get the message from the interaction
+            message = interaction.message
+            if message:
+                await message.edit(embed=embed, view=self)
+            else:
+                # Fallback: try to get the original response
+                original = await interaction.original_response()
+                await original.edit(embed=embed, view=self)
+        except Exception as e:
+            print(f"Error updating giveaway embed: {e}")
             pass
 
 # Giveaway time selection
@@ -1761,6 +1773,11 @@ COMMAND_HELP = {
         'usage': '/help [コマンド名]',
         'details': 'コマンド一覧を表示します。コマンド名を指定すると詳細な説明を表示します。'
     },
+    'giveaway': {
+        'description': 'Giveawayを開始',
+        'usage': '/giveaway <景品>',
+        'details': '指定した景品でGiveawayを開始します。時間は1h, 3h, 5h, 24h, 48hから選択できます。参加者はボタンをクリックして参加できます。メッセージ管理権限が必要です。'
+    },
 
     'servers': {
         'description': 'ユーザーが参加しているサーバー一覧を表示',
@@ -2021,21 +2038,60 @@ async def bot_link_command(ctx):
 async def help_command(interaction: discord.Interaction, command: str = None):
     if command is None:
         # Show all commands
-        embed = discord.Embed(
-            title='🤖 ボットコマンド一覧',
-            description='使用可能なコマンドの一覧です。詳細は `/help コマンド名` で確認できます。',
-            color=0x0099ff
-        )
-
-        for cmd_name, cmd_info in COMMAND_HELP.items():
-            embed.add_field(
-                name=f"/{cmd_name}",
-                value=cmd_info['description'],
-                inline=False
+        commands_list = list(COMMAND_HELP.items())
+        
+        # If there are more than 25 commands, split into multiple embeds
+        if len(commands_list) > 25:
+            # First embed with first 25 commands
+            embed1 = discord.Embed(
+                title='🤖 ボットコマンド一覧 (1/2)',
+                description='使用可能なコマンドの一覧です。詳細は `/help コマンド名` で確認できます。',
+                color=0x0099ff
+            )
+            
+            for cmd_name, cmd_info in commands_list[:25]:
+                embed1.add_field(
+                    name=f"/{cmd_name}",
+                    value=cmd_info['description'],
+                    inline=False
+                )
+            
+            embed1.set_footer(text="続きがあります... | 例: /help nuke - コマンドの詳細を表示")
+            await interaction.response.send_message(embed=embed1)
+            
+            # Second embed with remaining commands
+            embed2 = discord.Embed(
+                title='🤖 ボットコマンド一覧 (2/2)',
+                description='続き...',
+                color=0x0099ff
+            )
+            
+            for cmd_name, cmd_info in commands_list[25:]:
+                embed2.add_field(
+                    name=f"/{cmd_name}",
+                    value=cmd_info['description'],
+                    inline=False
+                )
+            
+            embed2.set_footer(text="例: /help giveaway - コマンドの詳細を表示")
+            await interaction.followup.send(embed=embed2)
+        else:
+            # Single embed if 25 or fewer commands
+            embed = discord.Embed(
+                title='🤖 ボットコマンド一覧',
+                description='使用可能なコマンドの一覧です。詳細は `/help コマンド名` で確認できます。',
+                color=0x0099ff
             )
 
-        embed.set_footer(text="例: /help auth - authコマンドの詳細を表示")
-        await interaction.response.send_message(embed=embed)
+            for cmd_name, cmd_info in commands_list:
+                embed.add_field(
+                    name=f"/{cmd_name}",
+                    value=cmd_info['description'],
+                    inline=False
+                )
+
+            embed.set_footer(text="例: /help nuke - コマンドの詳細を表示")
+            await interaction.response.send_message(embed=embed)
 
     else:
         # Show specific command help
